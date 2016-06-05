@@ -6,6 +6,18 @@
 //  Copyright © 2016 syang. All rights reserved.
 //
 
+#include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Type.h"
+#include "llvm/IR/Verifier.h"
+
 #include <iostream>
 #include <string>
 #include <regex>
@@ -161,7 +173,7 @@ static std::unique_ptr<ExprAST> ParseNumberExpr() {
     assert(CurTok == tok_number && "tok_number expected.\n");
     double ThisValue = NumVal;
     getNextToken();
-    return std::make_unique<NumberExprAST>(ThisValue);
+    return llvm::make_unique<NumberExprAST>(ThisValue);
 }
 
 /// parenexpr ::= '(' expression ')'
@@ -180,7 +192,7 @@ static std::unique_ptr<ExprAST> ParseParenExpr() {
     }
     getNextToken(); // ')'
 
-    return std::move(Result);
+    return Result;
 }
 
 /// identifierexpr
@@ -214,11 +226,11 @@ static std::unique_ptr<ExprAST> ParseIdentifierExpr() {
         }
         getNextToken(); // ')'
 
-        auto Result = std::make_unique<CallExprAST>(Identifier, std::move(Args));
+        auto Result = llvm::make_unique<CallExprAST>(Identifier, std::move(Args));
         return std::move(Result);
     }
 
-    return std::make_unique<VariableExprAST>(Identifier);
+    return llvm::make_unique<VariableExprAST>(Identifier);
 }
 
 /// primary
@@ -274,7 +286,7 @@ static std::unique_ptr<PrototypeAST> ParsePrototype() {
     }
     getNextToken(); // ')'
 
-    return std::make_unique<PrototypeAST>(Name, Args);
+    return llvm::make_unique<PrototypeAST>(Name, Args);
 }
 
 /// definition ::= 'def' prototype expression
@@ -291,15 +303,14 @@ static std::unique_ptr<FunctionAST> ParseDefinition() {
         return nullptr;
     }
 
-    auto Result = std::make_unique<FunctionAST>(std::move(Proto), std::move(E));
-    return std::move(Result);
+    return llvm::make_unique<FunctionAST>(std::move(Proto), std::move(E));
 }
 
 /// external ::= 'extern' prototype
 static std::unique_ptr<PrototypeAST> ParseExtern() {
     assert(CurTok == tok_extern && "'extern' expected.\n");
     getNextToken(); // 'extern'
-    return std::move(ParsePrototype());
+    return ParsePrototype();
 }
 
 #pragma mark - Binary Expression Parsing
@@ -307,13 +318,13 @@ static int GetTokPrecedence() {
     switch (CurTok) {
         case '<':
         case '>':
-            return -10;
+            return 10;
         case '+':
         case '-':
-            return -20;
+            return 20;
         case '*':
         case '/':
-            return -40;
+            return 40;
         default:
             return -1;
     }
@@ -350,7 +361,7 @@ static std::unique_ptr<ExprAST> ParseBinOpRHS(int ExprPrec, std::unique_ptr<Expr
         }
 
         // Merge LHS/RHS.
-        LHS = std::make_unique<BinaryExprAST>(BinOp, std::move(LHS), std::move(RHS));
+        LHS = llvm::make_unique<BinaryExprAST>(BinOp, std::move(LHS), std::move(RHS));
     }
 }
 
@@ -364,8 +375,8 @@ static std::unique_ptr<ExprAST> ParseExpression() {
 static std::unique_ptr<FunctionAST> ParseTopLevelExpr() {
     if (auto E = ParseExpression()) {
         // Make an anonymous proto.
-        auto Proto = std::make_unique<PrototypeAST>("", std::vector<std::string>());
-        return std::make_unique<FunctionAST>(std::move(Proto), std::move(E));
+        auto Proto = llvm::make_unique<PrototypeAST>("", std::vector<std::string>());
+        return llvm::make_unique<FunctionAST>(std::move(Proto), std::move(E));
     }
     return nullptr;
 }

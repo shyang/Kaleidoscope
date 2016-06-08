@@ -20,20 +20,61 @@ public:
     : Context(&Context) {
     }
 
+    void PrintMethod(clang::ObjCMethodDecl *Method) {
+        clang::Selector Selector = Method->getSelector();
+        /*
+         object: @ ==> @"ClassName"
+         block: @? ==> @?<Encoding>
+
+         arrayWithContentsOfFile: @"NSMutableArray"24@0:8@"NSString"16
+         sortWithOptions:usingComparator: v32@0:8Q16@?<q@?@@>24
+         */
+        std::string Types;
+        bool errCode = Context->getObjCEncodingForMethodDecl(Method, Types, true /* Extended */);
+        assert(!errCode);
+        std::cout << "  " << Selector.getAsString() << " " << Types << "\n";
+    }
+
+    void PrintProperty(clang::ObjCPropertyDecl *Property) {
+        // T@"NSString",R,C,&,N
+        //
+        // N: nullable
+        // R: readonly
+        // C: copy
+        // &: retain
+        //
+        // Context->getObjCEncodingForPropertyDecl(Property, nullptr, Types);
+        std::string Types;
+        Context->getObjCEncodingForPropertyType(Property->getType(), Types);
+        std::cout << "  " << Property->getNameAsString() << " " << Types << "\n";
+    }
+    int nProps;
+    int nMethods;
+
     bool VisitDecl(clang::Decl *Decl) {
         std::string Name;
         std::string Types;
         bool indent = false;
         switch (Decl->getKind()) {
-            case clang::Decl::Kind::Record:
-            case clang::Decl::Kind::Enum:
-            case clang::Decl::Kind::ObjCInterface:
-            case clang::Decl::Kind::ObjCProtocol:
             case clang::Decl::Kind::ObjCCategory:
+            case clang::Decl::Kind::ObjCInterface:
+            case clang::Decl::Kind::ObjCCategoryImpl:
+            case clang::Decl::Kind::ObjCImplementation:
+            case clang::Decl::Kind::ObjCProtocol:
             {
-                clang::NamedDecl *Named = clang::cast<clang::NamedDecl>(Decl);
-                Name = Named->getNameAsString();
-                break;
+                clang::ObjCContainerDecl *Container = clang::cast<clang::ObjCContainerDecl>(Decl);
+                Name = Container->getNameAsString();
+                std::cout << Name << "\n";
+                for (const auto &I : Container->properties()) {
+                    PrintProperty(I);
+                    ++nProps;
+                }
+
+                for (const auto &I : Container->methods()) {
+                    PrintMethod(I);
+                    ++nMethods;
+                }
+                return true;
             }
 
             // Var, Function, EnumConstant are in global naming space
@@ -61,38 +102,6 @@ public:
                 break;
             }
 
-            // Property, Method are in classes
-            case clang::Decl::Kind::ObjCProperty: {
-                clang::ObjCPropertyDecl *Property = clang::cast<clang::ObjCPropertyDecl>(Decl);
-                // T@"NSString",R,C,&,N
-                //
-                // N: nullable
-                // R: readonly
-                // C: copy
-                // &: retain
-                //
-                // Context->getObjCEncodingForPropertyDecl(Property, nullptr, Types);
-                Context->getObjCEncodingForPropertyType(Property->getType(), Types);
-                Name = Property->getNameAsString();
-                indent = true;
-                break;
-            }
-            case clang::Decl::Kind::ObjCMethod: {
-                clang::ObjCMethodDecl *Method = clang::cast<clang::ObjCMethodDecl>(Decl);
-                clang::Selector Selector = Method->getSelector();
-                /*
-                 object: @ ==> @"ClassName"
-                 block: @? ==> @?<Encoding>
-
-                 arrayWithContentsOfFile: @"NSMutableArray"24@0:8@"NSString"16
-                 sortWithOptions:usingComparator: v32@0:8Q16@?<q@?@@>24
-                 */
-                bool errCode = Context->getObjCEncodingForMethodDecl(Method, Types, true /* Extended */);
-                assert(!errCode);
-                Name = Selector.getAsString();
-                indent = true;
-                break;
-            }
             default:
                 return true;
         }
@@ -108,6 +117,7 @@ public:
     virtual void HandleTranslationUnit(clang::ASTContext &Context) {
         Visitor = llvm::make_unique<MyASTVisitor>(Context);
         Visitor->TraverseDecl(Context.getTranslationUnitDecl());
+        std::cout << "properties: " << Visitor->nProps << " methods: " << Visitor->nMethods << '\n';
     }
 private:
     std::unique_ptr<MyASTVisitor> Visitor;

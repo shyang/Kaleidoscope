@@ -35,6 +35,8 @@ public:
                 Name = Named->getNameAsString();
                 break;
             }
+
+            // Var, Function, EnumConstant are in global naming space
             case clang::Decl::Kind::Var: {
                 clang::VarDecl *VD = clang::cast<clang::VarDecl>(Decl);
                 Context->getObjCEncodingForType(VD->getType(), Types);
@@ -58,6 +60,8 @@ public:
                 indent = true;
                 break;
             }
+
+            // Property, Method are in classes
             case clang::Decl::Kind::ObjCProperty: {
                 clang::ObjCPropertyDecl *Property = clang::cast<clang::ObjCPropertyDecl>(Decl);
                 // T@"NSString",R,C,&,N
@@ -123,10 +127,7 @@ int main(int argc, const char **argv) {
     std::string Path = Sdk + "/System/Library/Frameworks/Foundation.framework/Headers/NSArray.h";
 
     std::ifstream File(Path);
-    typedef std::istreambuf_iterator<char> Iterator;
-    std::istreambuf_iterator<char> It(File);
-    std::istreambuf_iterator<char> Eof;
-    std::string Code(Iterator(File), (Iterator()));
+    std::string Code(std::istreambuf_iterator<char>(File), (std::istreambuf_iterator<char>()));
 
     std::vector<std::string> Args = {
         "-ObjC++", "-Wall", "-isysroot", Sdk, "-arch", Arch, "-miphoneos-version-min=7.0", "-std=c++11",

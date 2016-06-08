@@ -23,6 +23,7 @@ public:
     bool VisitDecl(clang::Decl *Decl) {
         std::string Name;
         std::string Types;
+        bool indent = false;
         switch (Decl->getKind()) {
             case clang::Decl::Kind::Record:
             case clang::Decl::Kind::Enum:
@@ -32,18 +33,6 @@ public:
             {
                 clang::NamedDecl *Named = clang::cast<clang::NamedDecl>(Decl);
                 Name = Named->getNameAsString();
-                if (Name.length() == 0) {
-                    return true;
-                }
-                std::cout << "<" << Name << ">\n";
-                return true;
-            }
-            case clang::Decl::Kind::EnumConstant: {
-                clang::EnumConstantDecl *Enum = clang::cast<clang::EnumConstantDecl>(Decl);
-                llvm::APSInt Value = Enum->getInitVal();
-
-                Context->getObjCEncodingForType(Enum->getType(), Types); // 只有 i I q Q 整数类型。所有 enum constant 都有值。
-                Name = Enum->getNameAsString() + " = " + Value.toString(10);
                 break;
             }
             case clang::Decl::Kind::Var: {
@@ -51,20 +40,37 @@ public:
                 Context->getObjCEncodingForType(VD->getType(), Types);
                 // clang::APValue *Value = VD->getEvaluatedValue(); 少部分全局变量有初始值，大部分是 extern
                 // Value->getAsString(*Context, VD->getType())
-                Name = VD->getNameAsString();
+                Name = "var " + VD->getNameAsString();
                 break;
             }
             case clang::Decl::Kind::Function: {
                 clang::FunctionDecl *Function = clang::cast<clang::FunctionDecl>(Decl);
                 Context->getObjCEncodingForFunctionDecl(Function, Types);
-                Name = Function->getNameAsString();
+                Name = Function->getNameAsString() + "()";
+                break;
+            }
+            case clang::Decl::Kind::EnumConstant: {
+                clang::EnumConstantDecl *Enum = clang::cast<clang::EnumConstantDecl>(Decl);
+                llvm::APSInt Value = Enum->getInitVal();
+
+                Context->getObjCEncodingForType(Enum->getType(), Types); // 只有 i I q Q 整数类型。所有 enum constant 都有值。
+                Name = Enum->getNameAsString() + " = " + Value.toString(10);
+                indent = true;
                 break;
             }
             case clang::Decl::Kind::ObjCProperty: {
                 clang::ObjCPropertyDecl *Property = clang::cast<clang::ObjCPropertyDecl>(Decl);
-                Context->getObjCEncodingForPropertyDecl(Property, nullptr, Types);
-                // Context->getObjCEncodingForPropertyType(Property->getType(), Types);
+                // T@"NSString",R,C,&,N
+                //
+                // N: nullable
+                // R: readonly
+                // C: copy
+                // &: retain
+                //
+                // Context->getObjCEncodingForPropertyDecl(Property, nullptr, Types);
+                Context->getObjCEncodingForPropertyType(Property->getType(), Types);
                 Name = Property->getNameAsString();
+                indent = true;
                 break;
             }
             case clang::Decl::Kind::ObjCMethod: {
@@ -77,15 +83,16 @@ public:
                  arrayWithContentsOfFile: @"NSMutableArray"24@0:8@"NSString"16
                  sortWithOptions:usingComparator: v32@0:8Q16@?<q@?@@>24
                  */
-                Context->getObjCEncodingForMethodDecl(Method, Types, true /* Extended */);
+                bool errCode = Context->getObjCEncodingForMethodDecl(Method, Types, true /* Extended */);
+                assert(!errCode);
                 Name = Selector.getAsString();
+                indent = true;
                 break;
             }
             default:
                 return true;
         }
-        assert(Name.length() <= 2 && "no name");
-        std::cout << "  " << Name << " " << Types << "\n";
+        std::cout << (indent ? "  " : "") << (Name.length() ? Name : "(Anonymous)") << " " << Types << "\n";
         return true;
     }
 private:

@@ -14,9 +14,9 @@
 #include <iostream>
 #include <cassert>
 
-class FindNamedClassVisitor : public clang::RecursiveASTVisitor<FindNamedClassVisitor> {
+class MyASTVisitor : public clang::RecursiveASTVisitor<MyASTVisitor> {
 public:
-    explicit FindNamedClassVisitor(clang::ASTContext &Context)
+    explicit MyASTVisitor(clang::ASTContext &Context)
     : Context(&Context) {
     }
 
@@ -99,20 +99,20 @@ private:
     clang::ASTContext *Context;
 };
 
-class FindNamedClassConsumer : public clang::ASTConsumer {
+class MyASTConsumer : public clang::ASTConsumer {
 public:
     virtual void HandleTranslationUnit(clang::ASTContext &Context) {
-        Visitor = llvm::make_unique<FindNamedClassVisitor>(Context);
+        Visitor = llvm::make_unique<MyASTVisitor>(Context);
         Visitor->TraverseDecl(Context.getTranslationUnitDecl());
     }
 private:
-    std::unique_ptr<FindNamedClassVisitor> Visitor;
+    std::unique_ptr<MyASTVisitor> Visitor;
 };
 
 class FindNamedClassAction : public clang::ASTFrontendAction {
 public:
     virtual std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(clang::CompilerInstance &Compiler, llvm::StringRef InFile) {
-        return std::unique_ptr<clang::ASTConsumer>(new FindNamedClassConsumer);
+        return std::unique_ptr<clang::ASTConsumer>(new MyASTConsumer);
     }
 };
 

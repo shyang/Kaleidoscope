@@ -55,14 +55,21 @@ public:
         std::string Name;
         std::string Types;
         bool indent = false;
+
+        clang::ObjCCategoryDecl *Category = nullptr;
+        clang::ObjCContainerDecl *Container = nullptr;
         switch (Decl->getKind()) {
+            case clang::Decl::Kind::ObjCCategoryImpl: {
+                clang::ObjCCategoryImplDecl *CategoryImpl = clang::cast<clang::ObjCCategoryImplDecl>(Decl);
+                Category = CategoryImpl->getCategoryDecl();
+            }
             case clang::Decl::Kind::ObjCCategory:
+                Category = Category ?: clang::cast<clang::ObjCCategoryDecl>(Decl);
+                Container = Category->getClassInterface();
             case clang::Decl::Kind::ObjCInterface:
-            case clang::Decl::Kind::ObjCCategoryImpl:
             case clang::Decl::Kind::ObjCImplementation:
-            case clang::Decl::Kind::ObjCProtocol:
-            {
-                clang::ObjCContainerDecl *Container = clang::cast<clang::ObjCContainerDecl>(Decl);
+            case clang::Decl::Kind::ObjCProtocol: {
+                Container = Container ?: clang::cast<clang::ObjCContainerDecl>(Decl);
                 Name = Container->getNameAsString();
                 std::cout << Name << "\n";
                 for (const auto &I : Container->properties()) {

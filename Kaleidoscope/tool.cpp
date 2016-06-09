@@ -125,7 +125,7 @@ private:
     std::unique_ptr<MyASTVisitor> Visitor;
 };
 
-class FindNamedClassAction : public clang::ASTFrontendAction {
+class MyAction : public clang::ASTFrontendAction {
 public:
     virtual std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(clang::CompilerInstance &Compiler, llvm::StringRef InFile) {
         return std::unique_ptr<clang::ASTConsumer>(new MyASTConsumer);
@@ -133,21 +133,27 @@ public:
 };
 
 int main(int argc, const char **argv) {
-
-    std::string Sdk = "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator.sdk";
-    std::string Arch = "x86_64"; // i386 x86_64 arm arm64
-    std::string Path = Sdk + "/System/Library/Frameworks/Foundation.framework/Headers/NSArray.h";
-
-    std::ifstream File(Path);
-    std::string Code(std::istreambuf_iterator<char>(File), (std::istreambuf_iterator<char>()));
-
+    if (argc < 2) {
+        std::cerr << "no input file\n";
+        return -1;
+    }
     std::vector<std::string> Args = {
-        "-ObjC++", "-Wall", "-isysroot", Sdk, "-arch", Arch, "-miphoneos-version-min=7.0", "-std=c++11",
+        "-ObjC++", "-Wall", "-miphoneos-version-min=7.0", "-std=c++11",
         // http://llvm.org/releases/3.4/tools/clang/docs/LibTooling.html
         // search "../lib/clang/3.8.0/include" by default
         "-I/usr/local/Cellar/llvm/3.8.0/lib/clang/3.8.0/include",
         // "-v",
     };
-    clang::tooling::runToolOnCodeWithArgs(new FindNamedClassAction, Code, Args);
+
+    // -isysroot
+    // -arch=x86_64 | i386 | arm | arm64
+    for (int i = 1; i < argc - 1; ++i) {
+        Args.push_back(argv[i]);
+    }
+
+    std::ifstream File(argv[argc - 1]);
+    std::string Code(std::istreambuf_iterator<char>(File), (std::istreambuf_iterator<char>()));
+
+    clang::tooling::runToolOnCodeWithArgs(new MyAction, Code, Args);
     return 0;
 }

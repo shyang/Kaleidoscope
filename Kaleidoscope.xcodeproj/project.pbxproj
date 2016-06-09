@@ -166,8 +166,14 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				HEADER_SEARCH_PATHS = /usr/local/Cellar/llvm/3.8.0/include;
-				LIBRARY_SEARCH_PATHS = /usr/local/Cellar/llvm/3.8.0/lib;
+				HEADER_SEARCH_PATHS = (
+					/usr/local/Cellar/llvm/3.8.0/include,
+					/usr/local/include,
+				);
+				LIBRARY_SEARCH_PATHS = (
+					/usr/local/Cellar/llvm/3.8.0/lib,
+					/usr/local/lib,
+				);
 				MACOSX_DEPLOYMENT_TARGET = 10.11;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -317,6 +323,7 @@
 					"-lLLVMMC",
 					"-lLLVMCore",
 					"-lLLVMSupport",
+					"-ljsoncpp",
 				);
 				SDKROOT = macosx;
 			};
@@ -355,8 +362,14 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				HEADER_SEARCH_PATHS = /usr/local/Cellar/llvm/3.8.0/include;
-				LIBRARY_SEARCH_PATHS = /usr/local/Cellar/llvm/3.8.0/lib;
+				HEADER_SEARCH_PATHS = (
+					/usr/local/Cellar/llvm/3.8.0/include,
+					/usr/local/include,
+				);
+				LIBRARY_SEARCH_PATHS = (
+					/usr/local/Cellar/llvm/3.8.0/lib,
+					/usr/local/lib,
+				);
 				MACOSX_DEPLOYMENT_TARGET = 10.11;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				OTHER_CPLUSPLUSFLAGS = (
@@ -505,6 +518,7 @@
 					"-lLLVMMC",
 					"-lLLVMCore",
 					"-lLLVMSupport",
+					"-ljsoncpp",
 				);
 				SDKROOT = macosx;
 			};

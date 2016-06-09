@@ -13,6 +13,9 @@
 #include <fstream>
 #include <iostream>
 #include <cassert>
+#include <unordered_map>
+#include <map>
+#include <json/json.h> // brew install jsoncpp
 
 class MyASTVisitor : public clang::RecursiveASTVisitor<MyASTVisitor> {
 public:
@@ -20,44 +23,11 @@ public:
     : Context(&Context) {
     }
 
-    void PrintMethod(clang::ObjCMethodDecl *Method) {
-        clang::Selector Selector = Method->getSelector();
-        /*
-         object: @ ==> @"ClassName"
-         block: @? ==> @?<Encoding>
-
-         arrayWithContentsOfFile: @"NSMutableArray"24@0:8@"NSString"16
-         sortWithOptions:usingComparator: v32@0:8Q16@?<q@?@@>24
-         */
-        std::string Types;
-        bool errCode = Context->getObjCEncodingForMethodDecl(Method, Types, true /* Extended */);
-        assert(!errCode);
-        std::cout << "  " << Selector.getAsString() << " " << Types << "\n";
-    }
-
-    void PrintProperty(clang::ObjCPropertyDecl *Property) {
-        // T@"NSString",R,C,&,N
-        //
-        // N: nullable
-        // R: readonly
-        // C: copy
-        // &: retain
-        //
-        // Context->getObjCEncodingForPropertyDecl(Property, nullptr, Types);
-        std::string Types;
-        Context->getObjCEncodingForPropertyType(Property->getType(), Types);
-        std::cout << "  " << Property->getNameAsString() << " " << Types << "\n";
-    }
-    int nProps;
-    int nMethods;
-
     bool VisitDecl(clang::Decl *Decl) {
-        std::string Name;
-        std::string Types;
-        bool indent = false;
-
         clang::ObjCCategoryDecl *Category = nullptr;
         clang::ObjCContainerDecl *Container = nullptr;
+        std::string Types;
+
         switch (Decl->getKind()) {
             case clang::Decl::Kind::ObjCCategoryImpl: {
                 clang::ObjCCategoryImplDecl *CategoryImpl = clang::cast<clang::ObjCCategoryImplDecl>(Decl);
@@ -70,16 +40,38 @@ public:
             case clang::Decl::Kind::ObjCImplementation:
             case clang::Decl::Kind::ObjCProtocol: {
                 Container = Container ?: clang::cast<clang::ObjCContainerDecl>(Decl);
-                Name = Container->getNameAsString();
-                std::cout << Name << "\n";
-                for (const auto &I : Container->properties()) {
-                    PrintProperty(I);
-                    ++nProps;
+                std::string Name = Container->getNameAsString();
+
+                auto &Cls = Root["class"][Name];
+
+                for (const auto &Property : Container->properties()) {
+                    // T@"NSString",R,C,&,N
+                    //
+                    // N: nullable
+                    // R: readonly
+                    // C: copy
+                    // &: retain
+                    //
+                    // Context->getObjCEncodingForPropertyDecl(Property, nullptr, Types);
+                    std::string Types;
+                    Context->getObjCEncodingForPropertyType(Property->getType(), Types);
+
+                    Cls[Property->getNameAsString()] = Types;
                 }
 
-                for (const auto &I : Container->methods()) {
-                    PrintMethod(I);
-                    ++nMethods;
+                for (const auto &Method : Container->methods()) {
+                    clang::Selector Selector = Method->getSelector();
+                    /*
+                     object: @ ==> @"ClassName"
+                     block: @? ==> @?<Encoding>
+
+                     arrayWithContentsOfFile: @"NSMutableArray"24@0:8@"NSString"16
+                     sortWithOptions:usingComparator: v32@0:8Q16@?<q@?@@>24
+                     */
+                    std::string Types;
+                    Context->getObjCEncodingForMethodDecl(Method, Types, true /* Extended */);
+
+                    Cls[Selector.getAsString()] = Types;
                 }
                 return true;
             }
@@ -90,13 +82,13 @@ public:
                 Context->getObjCEncodingForType(VD->getType(), Types);
                 // clang::APValue *Value = VD->getEvaluatedValue(); 少部分全局变量有初始值，大部分是 extern
                 // Value->getAsString(*Context, VD->getType())
-                Name = "var " + VD->getNameAsString();
+                Root["var"][VD->getNameAsString()] = Types;
                 break;
             }
             case clang::Decl::Kind::Function: {
                 clang::FunctionDecl *Function = clang::cast<clang::FunctionDecl>(Decl);
                 Context->getObjCEncodingForFunctionDecl(Function, Types);
-                Name = Function->getNameAsString() + "()";
+                Root["func"][Function->getNameAsString()] = Types;
                 break;
             }
             case clang::Decl::Kind::EnumConstant: {
@@ -104,27 +96,30 @@ public:
                 llvm::APSInt Value = Enum->getInitVal();
 
                 Context->getObjCEncodingForType(Enum->getType(), Types); // 只有 i I q Q 整数类型。所有 enum constant 都有值。
-                Name = Enum->getNameAsString() + " = " + Value.toString(10);
-                indent = true;
+                Root["enum"][Enum->getNameAsString()] = Value.toString(10);
                 break;
             }
 
             default:
                 return true;
         }
-        std::cout << (indent ? "  " : "") << (Name.length() ? Name : "(Anonymous)") << " " << Types << "\n";
         return true;
     }
-private:
+
     clang::ASTContext *Context;
+
+    // class -> {name -> type}
+    // var -> type/value
+    // func -> type
+    Json::Value Root;
 };
 
 class MyASTConsumer : public clang::ASTConsumer {
 public:
     virtual void HandleTranslationUnit(clang::ASTContext &Context) {
-        Visitor = llvm::make_unique<MyASTVisitor>(Context);
-        Visitor->TraverseDecl(Context.getTranslationUnitDecl());
-        std::cout << "properties: " << Visitor->nProps << " methods: " << Visitor->nMethods << '\n';
+        MyASTVisitor Visitor(Context);
+        Visitor.TraverseDecl(Context.getTranslationUnitDecl());
+        std::cout << Visitor.Root << '\n';
     }
 private:
     std::unique_ptr<MyASTVisitor> Visitor;

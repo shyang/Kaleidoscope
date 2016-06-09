@@ -79,6 +79,9 @@ public:
             // Var, Function, EnumConstant are in global naming space
             case clang::Decl::Kind::Var: {
                 clang::VarDecl *VD = clang::cast<clang::VarDecl>(Decl);
+                if (!VD->hasExternalStorage()) {
+                    break;
+                }
                 Context->getObjCEncodingForType(VD->getType(), Types);
                 // clang::APValue *Value = VD->getEvaluatedValue(); 少部分全局变量有初始值，大部分是 extern
                 // Value->getAsString(*Context, VD->getType())
@@ -87,6 +90,9 @@ public:
             }
             case clang::Decl::Kind::Function: {
                 clang::FunctionDecl *Function = clang::cast<clang::FunctionDecl>(Decl);
+                if (!Function->isExternC()) {
+                    break;
+                }
                 Context->getObjCEncodingForFunctionDecl(Function, Types);
                 Root["func"][Function->getNameAsString()] = Types;
                 break;

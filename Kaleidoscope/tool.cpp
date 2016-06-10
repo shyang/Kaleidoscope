@@ -23,57 +23,61 @@ public:
     : Context(&Context) {
     }
 
-    bool VisitDecl(clang::Decl *Decl) {
-        clang::ObjCCategoryDecl *Category = nullptr;
-        clang::ObjCContainerDecl *Container = nullptr;
-        std::string Types;
+    void EnumerateContainer(clang::ObjCContainerDecl *Container, std::string Name) {
+        auto &Cls = Root["class"][Name];
 
+        for (const auto &Property : Container->properties()) {
+            // T@"NSString",R,C,&,N
+            //
+            // N: nullable
+            // R: readonly
+            // C: copy
+            // &: retain
+            //
+            // Context->getObjCEncodingForPropertyDecl(Property, nullptr, Types);
+            std::string Types;
+            Context->getObjCEncodingForPropertyType(Property->getType(), Types);
+
+            Cls[Property->getNameAsString()] = Types;
+        }
+
+        for (const auto &Method : Container->methods()) {
+            clang::Selector Selector = Method->getSelector();
+            /*
+             object: @ ==> @"ClassName"
+             block: @? ==> @?<Encoding>
+
+             arrayWithContentsOfFile: @"NSMutableArray"24@0:8@"NSString"16
+             sortWithOptions:usingComparator: v32@0:8Q16@?<q@?@@>24
+             */
+            std::string Types;
+            Context->getObjCEncodingForMethodDecl(Method, Types, true /* Extended */);
+            std::string Name = Selector.getAsString();
+            Cls[Name] = Types;
+        }
+    }
+
+    bool VisitDecl(clang::Decl *Decl) {
         switch (Decl->getKind()) {
             case clang::Decl::Kind::ObjCCategoryImpl: {
-                clang::ObjCCategoryImplDecl *CategoryImpl = clang::cast<clang::ObjCCategoryImplDecl>(Decl);
-                Category = CategoryImpl->getCategoryDecl();
+                auto CategoryImpl = clang::cast<clang::ObjCCategoryImplDecl>(Decl);
+                auto Category = CategoryImpl->getCategoryDecl();
+                auto Interface = Category->getClassInterface();
+                EnumerateContainer(CategoryImpl, Interface->getNameAsString());
             }
-            case clang::Decl::Kind::ObjCCategory:
-                Category = Category ?: clang::cast<clang::ObjCCategoryDecl>(Decl);
-                Container = Category->getClassInterface();
+                break;
+            case clang::Decl::Kind::ObjCCategory: {
+                auto Category = clang::cast<clang::ObjCCategoryDecl>(Decl);
+                auto Interface = Category->getClassInterface();
+                EnumerateContainer(Category, Interface->getNameAsString());
+                break;
+            }
             case clang::Decl::Kind::ObjCInterface:
             case clang::Decl::Kind::ObjCImplementation:
             case clang::Decl::Kind::ObjCProtocol: {
-                Container = Container ?: clang::cast<clang::ObjCContainerDecl>(Decl);
-                std::string Name = Container->getNameAsString();
-
-                auto &Cls = Root["class"][Name];
-
-                for (const auto &Property : Container->properties()) {
-                    // T@"NSString",R,C,&,N
-                    //
-                    // N: nullable
-                    // R: readonly
-                    // C: copy
-                    // &: retain
-                    //
-                    // Context->getObjCEncodingForPropertyDecl(Property, nullptr, Types);
-                    std::string Types;
-                    Context->getObjCEncodingForPropertyType(Property->getType(), Types);
-
-                    Cls[Property->getNameAsString()] = Types;
-                }
-
-                for (const auto &Method : Container->methods()) {
-                    clang::Selector Selector = Method->getSelector();
-                    /*
-                     object: @ ==> @"ClassName"
-                     block: @? ==> @?<Encoding>
-
-                     arrayWithContentsOfFile: @"NSMutableArray"24@0:8@"NSString"16
-                     sortWithOptions:usingComparator: v32@0:8Q16@?<q@?@@>24
-                     */
-                    std::string Types;
-                    Context->getObjCEncodingForMethodDecl(Method, Types, true /* Extended */);
-
-                    Cls[Selector.getAsString()] = Types;
-                }
-                return true;
+                auto Container = clang::cast<clang::ObjCContainerDecl>(Decl);
+                EnumerateContainer(Container, Container->getNameAsString());
+                break;
             }
 
             // Var, Function, EnumConstant are in global naming space
@@ -82,6 +86,7 @@ public:
                 if (!VD->hasExternalStorage()) {
                     break;
                 }
+                std::string Types;
                 Context->getObjCEncodingForType(VD->getType(), Types);
                 // clang::APValue *Value = VD->getEvaluatedValue(); 少部分全局变量有初始值，大部分是 extern
                 // Value->getAsString(*Context, VD->getType())
@@ -93,6 +98,7 @@ public:
                 if (!Function->isExternC()) {
                     break;
                 }
+                std::string Types;
                 Context->getObjCEncodingForFunctionDecl(Function, Types);
                 Root["func"][Function->getNameAsString()] = Types;
                 break;
@@ -100,7 +106,7 @@ public:
             case clang::Decl::Kind::EnumConstant: {
                 clang::EnumConstantDecl *Enum = clang::cast<clang::EnumConstantDecl>(Decl);
                 llvm::APSInt Value = Enum->getInitVal();
-
+                std::string Types;
                 Context->getObjCEncodingForType(Enum->getType(), Types); // 只有 i I q Q 整数类型。所有 enum constant 都有值。
                 Root["enum"][Enum->getNameAsString()] = Value.toString(10);
                 break;

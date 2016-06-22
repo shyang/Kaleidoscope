@@ -103,12 +103,22 @@ public:
                 Root["func"][Function->getNameAsString()] = Types;
                 break;
             }
-            case clang::Decl::Kind::EnumConstant: {
-                clang::EnumConstantDecl *Enum = clang::cast<clang::EnumConstantDecl>(Decl);
-                llvm::APSInt Value = Enum->getInitVal();
-                std::string Types;
-                Context->getObjCEncodingForType(Enum->getType(), Types); // 只有 i I q Q 整数类型。所有 enum constant 都有值。
-                Root["enum"][Enum->getNameAsString()] = Value.toString(10);
+            case clang::Decl::Kind::Enum: {
+                auto Enum = clang::cast<clang::EnumDecl>(Decl);
+                auto Name = Enum->getNameAsString();
+                if (!Name.length()) {
+                    auto File = Enum->getLocation().printToString(Context->getSourceManager());
+                    Name = File.substr(0, File.rfind('<') - 1);
+                    Name = Name.substr(Name.rfind('/') + 1);
+                }
+                auto &Map = Root["enum"][Name];
+
+                for (const auto &I : Enum->enumerators()) {
+                    llvm::APSInt Value = I->getInitVal();
+                    Map[I->getNameAsString()] = Value.toString(10);
+                }
+                // std::string Types;
+                // Context->getObjCEncodingForType(Enum->getType(), Types); // 只有 i I q Q 整数类型。所有 enum constant 都有值。
                 break;
             }
 
@@ -150,7 +160,8 @@ int main(int argc, const char **argv) {
         return -1;
     }
     std::vector<std::string> Args = {
-        "-ObjC++", "-Wall", "-miphoneos-version-min=7.0", "-std=c++11",
+        "-ObjC", "-Wall", "-miphoneos-version-min=7.0",
+        // "-std=c++11",
         // http://llvm.org/releases/3.4/tools/clang/docs/LibTooling.html
         // search "../lib/clang/3.8.0/include" by default
         "-I/usr/local/Cellar/llvm/3.8.0/lib/clang/3.8.0/include",

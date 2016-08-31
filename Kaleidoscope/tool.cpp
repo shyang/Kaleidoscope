@@ -72,9 +72,14 @@ public:
                 EnumerateContainer(Category, Interface->getNameAsString());
                 break;
             }
-            case clang::Decl::Kind::ObjCInterface:
-            case clang::Decl::Kind::ObjCImplementation:
             case clang::Decl::Kind::ObjCProtocol: {
+                auto Container = clang::cast<clang::ObjCProtocolDecl>(Decl);
+                Root["protocols"].append(Container->getNameAsString());
+                EnumerateContainer(Container, Container->getNameAsString());
+                break;
+            }
+            case clang::Decl::Kind::ObjCInterface:
+            case clang::Decl::Kind::ObjCImplementation: {
                 auto Container = clang::cast<clang::ObjCContainerDecl>(Decl);
                 EnumerateContainer(Container, Container->getNameAsString());
                 break;

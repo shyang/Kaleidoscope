@@ -169,7 +169,7 @@ int main(int argc, const char **argv) {
         // "-std=c++11",
         // http://llvm.org/releases/3.4/tools/clang/docs/LibTooling.html
         // search "../lib/clang/3.8.0/include" by default
-        "-I/usr/local/Cellar/llvm/3.8.0/lib/clang/3.8.0/include",
+        "-I/usr/local/Cellar/llvm/3.9.1/lib/clang/3.9.1/include",
         // "-v",
     };
 

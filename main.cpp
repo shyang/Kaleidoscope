@@ -6,27 +6,33 @@
 //  Copyright © 2016 syang. All rights reserved.
 //
 
+// Tutorial:
+// https://clang.llvm.org/docs/LibASTMatchersTutorial.html
+// https://clang.llvm.org/docs/RAVFrontendAction.html
+
+// brew install llvm
 #include <clang/AST/RecursiveASTVisitor.h>
 #include <clang/Frontend/FrontendActions.h>
 #include <clang/Tooling/Tooling.h>
+
+// brew install jsoncpp
+#include <json/json.h>
 
 #include <fstream>
 #include <iostream>
 #include <cassert>
 #include <unordered_map>
 #include <map>
-#include <json/json.h> // brew install jsoncpp
 
 class MyASTVisitor : public clang::RecursiveASTVisitor<MyASTVisitor> {
 public:
     explicit MyASTVisitor(clang::ASTContext &Context)
-    : Context(&Context) {
-    }
+        : Context(&Context) {}
 
     void EnumerateContainer(clang::ObjCContainerDecl *Container, std::string Name) {
         auto &Cls = Root["class"][Name];
 
-        for (const auto &Property : Container->properties()) {
+        for (const auto Property : Container->properties()) {
             // T@"NSString",R,C,&,N
             //
             // N: nullable
@@ -41,7 +47,7 @@ public:
             Cls[Property->getNameAsString()] = Types;
         }
 
-        for (const auto &Method : Container->methods()) {
+        for (const auto Method : Container->methods()) {
             clang::Selector Selector = Method->getSelector();
             /*
              object: @ ==> @"ClassName"
@@ -50,8 +56,7 @@ public:
              arrayWithContentsOfFile: @"NSMutableArray"24@0:8@"NSString"16
              sortWithOptions:usingComparator: v32@0:8Q16@?<q@?@@>24
              */
-            std::string Types;
-            Context->getObjCEncodingForMethodDecl(Method, Types, true /* Extended */);
+            std::string Types = Context->getObjCEncodingForMethodDecl(Method, true /* Extended */);
             std::string Name = Selector.getAsString();
             Cls[Name] = Types;
         }
@@ -103,8 +108,7 @@ public:
                 if (!Function->isExternC()) {
                     break;
                 }
-                std::string Types;
-                Context->getObjCEncodingForFunctionDecl(Function, Types);
+                std::string Types = Context->getObjCEncodingForFunctionDecl(Function);
                 Root["func"][Function->getNameAsString()] = Types;
                 break;
             }
@@ -118,7 +122,7 @@ public:
                 }
                 auto &Map = Root["enum"][Name];
 
-                for (const auto &I : Enum->enumerators()) {
+                for (const auto I : Enum->enumerators()) {
                     llvm::APSInt Value = I->getInitVal();
                     Map[I->getNameAsString()] = Value.toString(10);
                 }
@@ -169,7 +173,7 @@ int main(int argc, const char **argv) {
         // "-std=c++11",
         // http://llvm.org/releases/3.4/tools/clang/docs/LibTooling.html
         // search "../lib/clang/3.8.0/include" by default
-        "-I/usr/local/Cellar/llvm/3.9.1/lib/clang/3.9.1/include",
+        "-I/usr/local/Cellar/llvm/7.0.0/lib/clang/7.0.0/include",
         // "-v",
     };
 

@@ -165,7 +165,7 @@ public:
 
 int main(int argc, const char **argv) {
     if (argc < 2) {
-        std::cerr << "no input file\n";
+        std::cerr << "Usage:\n  SignatureExtractor -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/Foundation.framework/Headers/NSArray.h\n";
         return -1;
     }
     std::vector<std::string> Args = {
